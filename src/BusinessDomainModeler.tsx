@@ -102,32 +102,6 @@ const BusinessDomainModeler = () => {
     setSelectedEntity(newEntity);
   };
 
-  // Add new entity at specific position
-  const addEntityAtPosition = (position: number) => {
-    const newEntity = {
-      id: `entity-${Date.now()}`,
-      name: 'New Entity',
-      order: position,
-      attributes: [],
-      states: [],
-      actions: []
-    };
-
-    // Update orders of existing entities that come after this position
-    const updatedEntities = model.entities.map(entity =>
-      entity.order >= position ? { ...entity, order: entity.order + 1 } : entity
-    );
-
-    const newModel = {
-      ...model,
-      entities: [...updatedEntities, newEntity]
-    };
-
-    setModel(newModel);
-    saveToHistory(newModel);
-    setSelectedEntity(newEntity);
-  };
-
   // Delete entity
   const deleteEntity = (entityId: string) => {
     const newModel = {
