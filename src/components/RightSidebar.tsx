@@ -6,6 +6,8 @@ interface RightSidebarProps {
   entities: Entity[];
   relationships: Relationship[];
   relationshipTypes: string[];
+  isCreatingRelationship: boolean;
+  relationshipStart: Entity | null;
   onUpdateEntity: (entityId: string, updates: Partial<Entity>) => void;
   onDeleteEntity: (entityId: string) => void;
   onUpdateRelationshipLabel: (relId: string, newLabel: string) => void;
@@ -18,6 +20,8 @@ interface RightSidebarProps {
   onUpdateAttribute: (index: number, field: keyof Attribute, value: string) => void;
   onUpdateState: (index: number, value: string) => void;
   onUpdateAction: (index: number, value: string) => void;
+  onStartRelationshipFromEntity: (entity: Entity) => void;
+  onCancelRelationship: () => void;
 }
 
 const RightSidebar: React.FC<RightSidebarProps> = ({
@@ -25,6 +29,8 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
   entities,
   relationships,
   relationshipTypes,
+  isCreatingRelationship,
+  relationshipStart,
   onUpdateEntity,
   onDeleteEntity,
   onUpdateRelationshipLabel,
@@ -37,6 +43,8 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
   onUpdateAttribute,
   onUpdateState,
   onUpdateAction,
+  onStartRelationshipFromEntity,
+  onCancelRelationship,
 }) => {
   // Get relationships for an entity
   const getEntityRelationships = (entityId: string) => {
@@ -174,7 +182,32 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
 
         {/* Relationships */}
         <div className="mt-6">
-          <h4 className="font-medium text-sm mb-2">Relationships:</h4>
+          <div className="flex justify-between items-center mb-2">
+            <h4 className="font-medium text-sm">Relationships:</h4>
+            {isCreatingRelationship && relationshipStart?.id === selectedEntity.id ? (
+              <button
+                onClick={onCancelRelationship}
+                className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs hover:bg-red-200"
+              >
+                Cancel
+              </button>
+            ) : (
+              <button
+                onClick={() => onStartRelationshipFromEntity(selectedEntity)}
+                className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs hover:bg-blue-200"
+              >
+                + Add
+              </button>
+            )}
+          </div>
+
+          {/* Relationship creation instruction */}
+          {isCreatingRelationship && relationshipStart?.id === selectedEntity.id && (
+            <div className="mb-3 p-2 bg-orange-50 rounded text-xs text-orange-800">
+              Click another entity to create a relationship from "{selectedEntity.name}"
+            </div>
+          )}
+
           {(() => {
             const rels = getEntityRelationships(selectedEntity.id);
             const hasRelationships = rels.outgoing.length > 0 || rels.incoming.length > 0;

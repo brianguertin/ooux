@@ -161,6 +161,18 @@ const BusinessDomainModeler = () => {
     }
   };
 
+  // Start relationship from a specific entity (called from sidebar)
+  const startRelationshipFromEntity = (entity: Entity) => {
+    setIsCreatingRelationship(true);
+    setRelationshipStart(entity);
+  };
+
+  // Cancel relationship creation
+  const cancelRelationship = () => {
+    setIsCreatingRelationship(false);
+    setRelationshipStart(null);
+  };
+
   // Handle entity click for relationship creation
   const handleEntityClick = (e: React.MouseEvent, entity: Entity) => {
     e.stopPropagation();
@@ -458,9 +470,6 @@ const BusinessDomainModeler = () => {
       <div className="flex flex-1">
         <LeftSidebar
           onAddEntity={addEntity}
-          isCreatingRelationship={isCreatingRelationship}
-          onToggleRelationshipMode={() => setIsCreatingRelationship(!isCreatingRelationship)}
-          relationshipStart={relationshipStart}
         />
 
         {/* Canvas Area */}
@@ -511,6 +520,8 @@ const BusinessDomainModeler = () => {
           entities={model.entities}
           relationships={model.relationships}
           relationshipTypes={relationshipTypes}
+          isCreatingRelationship={isCreatingRelationship}
+          relationshipStart={relationshipStart}
           onUpdateEntity={updateEntity}
           onDeleteEntity={deleteEntity}
           onUpdateRelationshipLabel={updateRelationshipLabel}
@@ -523,6 +534,8 @@ const BusinessDomainModeler = () => {
           onUpdateAttribute={updateAttribute}
           onUpdateState={updateState}
           onUpdateAction={updateAction}
+          onStartRelationshipFromEntity={startRelationshipFromEntity}
+          onCancelRelationship={cancelRelationship}
         />
       </div>
     </div>
