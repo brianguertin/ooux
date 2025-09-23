@@ -18,7 +18,6 @@ import {
 
 import { Entity, Model, Attribute } from './types';
 import Toolbar from './components/Toolbar';
-import LeftSidebar from './components/LeftSidebar';
 import RightSidebar from './components/RightSidebar';
 import EntityCard from './components/EntityCard';
 
@@ -97,7 +96,33 @@ const BusinessDomainModeler = () => {
       ...model,
       entities: [...model.entities, newEntity]
     };
-    
+
+    setModel(newModel);
+    saveToHistory(newModel);
+    setSelectedEntity(newEntity);
+  };
+
+  // Add new entity at specific position
+  const addEntityAtPosition = (position: number) => {
+    const newEntity = {
+      id: `entity-${Date.now()}`,
+      name: 'New Entity',
+      order: position,
+      attributes: [],
+      states: [],
+      actions: []
+    };
+
+    // Update orders of existing entities that come after this position
+    const updatedEntities = model.entities.map(entity =>
+      entity.order >= position ? { ...entity, order: entity.order + 1 } : entity
+    );
+
+    const newModel = {
+      ...model,
+      entities: [...updatedEntities, newEntity]
+    };
+
     setModel(newModel);
     saveToHistory(newModel);
     setSelectedEntity(newEntity);
@@ -468,10 +493,6 @@ const BusinessDomainModeler = () => {
       />
 
       <div className="flex flex-1">
-        <LeftSidebar
-          onAddEntity={addEntity}
-        />
-
         {/* Canvas Area */}
         <div className="flex-1 relative overflow-auto">
           <div
@@ -502,6 +523,17 @@ const BusinessDomainModeler = () => {
                         onEntityClick={handleEntityClick}
                       />
                     ))}
+
+                  {/* Always visible plus button at the end (only when there are entities) */}
+                  {model.entities.length > 0 && (
+                    <button
+                      onClick={addEntity}
+                      className="w-12 h-12 bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center text-gray-500 hover:bg-gray-200 hover:border-gray-400 hover:text-gray-700 focus:outline-none transition-all"
+                      title="Add entity"
+                    >
+                      +
+                    </button>
+                  )}
                 </div>
               </SortableContext>
             </DndContext>
@@ -509,7 +541,13 @@ const BusinessDomainModeler = () => {
             {model.entities.length === 0 && (
               <div className="text-center text-gray-500 mt-20">
                 <div className="text-xl mb-2">No entities yet</div>
-                <div className="text-sm">Click "Add Entity" to get started</div>
+                <div className="text-sm mb-4">Click "Add Entity" to get started</div>
+                <button
+                  onClick={addEntity}
+                  className="px-4 py-2 bg-blue-100 text-blue-800 rounded hover:bg-blue-200"
+                >
+                  + Add Entity
+                </button>
               </div>
             )}
           </div>
