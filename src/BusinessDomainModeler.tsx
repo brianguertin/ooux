@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
+import html2canvas from 'html2canvas';
 
 const BusinessDomainModeler = () => {
   const [model, setModel] = useState({
@@ -359,95 +360,26 @@ const BusinessDomainModeler = () => {
         return;
       }
 
-      // Create a temporary canvas for rendering
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      
-      // Set canvas size based on content
-      const rect = canvasElement.getBoundingClientRect();
-      const scale = 2; // Higher resolution
-      canvas.width = rect.width * scale;
-      canvas.height = rect.height * scale;
-      
-      // Scale the context for higher resolution
-      ctx.scale(scale, scale);
-      
-      // Fill background
-      ctx.fillStyle = '#f9fafb'; // bg-gray-50
-      ctx.fillRect(0, 0, rect.width, rect.height);
-      
-      // Get all entity elements
-      const entities = canvasElement.querySelectorAll('[data-entity]');
-      
-      entities.forEach((entityEl, index) => {
-        const entityRect = entityEl.getBoundingClientRect();
-        const canvasRect = canvasElement.getBoundingClientRect();
-        
-        // Calculate position relative to canvas
-        const x = entityRect.left - canvasRect.left;
-        const y = entityRect.top - canvasRect.top;
-        
-        // Draw entity background
-        ctx.fillStyle = '#ffffff';
-        ctx.strokeStyle = entityEl.classList.contains('border-blue-500') ? '#3b82f6' : '#d1d5db';
-        ctx.lineWidth = 2;
-        ctx.roundRect(x, y, entityRect.width, entityRect.height, 8);
-        ctx.fill();
-        ctx.stroke();
-        
-        // Draw text content
-        const textElements = entityEl.querySelectorAll('div');
-        let textY = y + 20;
-        
-        textElements.forEach(textEl => {
-          const text = textEl.textContent?.trim();
-          if (!text) return;
-          
-          // Set font based on element classes
-          if (textEl.classList.contains('font-semibold')) {
-            ctx.font = 'bold 16px system-ui';
-            ctx.fillStyle = '#111827';
-          } else if (textEl.classList.contains('font-medium')) {
-            ctx.font = 'bold 12px system-ui';
-            ctx.fillStyle = '#374151';
-          } else if (textEl.classList.contains('text-blue-600')) {
-            ctx.font = '11px system-ui';
-            ctx.fillStyle = '#2563eb';
-          } else if (textEl.classList.contains('text-green-600')) {
-            ctx.font = '11px system-ui';
-            ctx.fillStyle = '#16a34a';
-          } else if (textEl.classList.contains('text-purple-600')) {
-            ctx.font = '11px system-ui';
-            ctx.fillStyle = '#9333ea';
-          } else {
-            ctx.font = '11px system-ui';
-            ctx.fillStyle = '#4b5563';
-          }
-          
-          // Word wrap for long text
-          const maxWidth = entityRect.width - 20;
-          const words = text.split(' ');
-          let line = '';
-          
-          for (let i = 0; i < words.length; i++) {
-            const testLine = line + words[i] + ' ';
-            const metrics = ctx.measureText(testLine);
-            
-            if (metrics.width > maxWidth && line !== '') {
-              ctx.fillText(line, x + 10, textY);
-              textY += 14;
-              line = words[i] + ' ';
-            } else {
-              line = testLine;
-            }
-          }
-          ctx.fillText(line, x + 10, textY);
-          textY += 16;
-        });
+      // Use html2canvas to capture the canvas area
+      const canvas = await html2canvas(canvasElement, {
+        backgroundColor: '#f9fafb',
+        scale: 2, // Higher resolution
+        useCORS: true,
+        allowTaint: true,
+        removeContainer: true,
+        ignoreElements: (element) => {
+          // Ignore elements that might interfere with the screenshot
+          return element.classList.contains('hover:') || element.classList.contains('focus:');
+        }
       });
-      
+
       // Convert to blob and download
       canvas.toBlob((blob) => {
+        if (!blob) {
+          alert('Failed to generate PNG');
+          return;
+        }
+
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -457,13 +389,13 @@ const BusinessDomainModeler = () => {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        
+
         console.log('PNG export successful!');
       }, 'image/png');
-      
+
     } catch (error) {
       console.error('PNG export failed:', error);
-      alert('PNG export failed. Please try again or use browser screenshot.');
+      alert('PNG export failed. Please try again.');
     }
   };
 
