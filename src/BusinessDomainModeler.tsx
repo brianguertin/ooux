@@ -1,21 +1,55 @@
 import React, { useState, useRef, useCallback } from 'react';
 import html2canvas from 'html2canvas';
 
+// TypeScript interfaces
+interface Attribute {
+  name: string;
+  type: 'string' | 'number' | 'boolean' | 'date' | 'enum';
+}
+
+interface Entity {
+  id: string;
+  name: string;
+  order: number;
+  attributes: Attribute[];
+  states: string[];
+  actions: string[];
+}
+
+interface Relationship {
+  id: string;
+  from: string;
+  to: string;
+  label: string;
+}
+
+interface Model {
+  entities: Entity[];
+  relationships: Relationship[];
+}
+
+interface DragState {
+  isDragging: boolean;
+  entityId: string;
+  startX: number;
+  currentOrder: number;
+}
+
 const BusinessDomainModeler = () => {
-  const [model, setModel] = useState({
+  const [model, setModel] = useState<Model>({
     entities: [],
     relationships: []
   });
-  const [selectedEntity, setSelectedEntity] = useState(null);
+  const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null);
   const [isCreatingRelationship, setIsCreatingRelationship] = useState(false);
-  const [relationshipStart, setRelationshipStart] = useState(null);
-  const [dragState, setDragState] = useState(null);
+  const [relationshipStart, setRelationshipStart] = useState<Entity | null>(null);
+  const [dragState, setDragState] = useState<DragState | null>(null);
   
   // Add missing state variables
-  const [history, setHistory] = useState([{ entities: [], relationships: [] }]);
+  const [history, setHistory] = useState<Model[]>([{ entities: [], relationships: [] }]);
   const [historyIndex, setHistoryIndex] = useState(0);
-  const canvasRef = useRef(null);
-  const fileInputRef = useRef(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Predefined relationship types
   const relationshipTypes = [
@@ -25,7 +59,7 @@ const BusinessDomainModeler = () => {
   ];
 
   // Save state to history for undo/redo
-  const saveToHistory = useCallback((newModel) => {
+  const saveToHistory = useCallback((newModel: Model) => {
     const newHistory = history.slice(0, historyIndex + 1);
     newHistory.push(JSON.parse(JSON.stringify(newModel)));
     setHistory(newHistory);
@@ -34,7 +68,7 @@ const BusinessDomainModeler = () => {
 
   // Keyboard shortcuts
   React.useEffect(() => {
-    const handleKeyDown = (e) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey) {
         if (e.key === 'z' && !e.shiftKey) {
           e.preventDefault();
@@ -83,7 +117,7 @@ const BusinessDomainModeler = () => {
   };
 
   // Delete entity
-  const deleteEntity = (entityId) => {
+  const deleteEntity = (entityId: string) => {
     const newModel = {
       entities: model.entities.filter(e => e.id !== entityId),
       relationships: model.relationships.filter(r => r.from !== entityId && r.to !== entityId)
@@ -95,7 +129,7 @@ const BusinessDomainModeler = () => {
   };
 
   // Update entity
-  const updateEntity = (entityId, updates) => {
+  const updateEntity = (entityId: string, updates: Partial<Entity>) => {
     const newModel = {
       ...model,
       entities: model.entities.map(e => 
@@ -104,11 +138,13 @@ const BusinessDomainModeler = () => {
     };
     
     setModel(newModel);
-    setSelectedEntity({ ...selectedEntity, ...updates });
+    if (selectedEntity) {
+      setSelectedEntity({ ...selectedEntity, ...updates });
+    }
   };
 
   // Handle entity click for relationship creation
-  const handleEntityClick = (e, entity) => {
+  const handleEntityClick = (e: React.MouseEvent, entity: Entity) => {
     e.stopPropagation();
     
     if (isCreatingRelationship) {
@@ -144,7 +180,7 @@ const BusinessDomainModeler = () => {
   };
 
   // Handle entity drag for reordering (horizontal)
-  const handleMouseDown = (e, entity) => {
+  const handleMouseDown = (e: React.MouseEvent, entity: Entity) => {
     if (isCreatingRelationship) {
       return; // Don't drag when creating relationships
     }
@@ -157,7 +193,7 @@ const BusinessDomainModeler = () => {
     });
   };
 
-  const handleMouseMove = (e) => {
+  const handleMouseMove = (e: React.MouseEvent) => {
     if (dragState && dragState.isDragging) {
       // Calculate which position we should move to based on mouse X
       const deltaX = e.clientX - dragState.startX;
@@ -172,7 +208,9 @@ const BusinessDomainModeler = () => {
         const otherEntities = sortedEntities.filter(e => e.id !== dragState.entityId);
         
         // Insert at new position
-        otherEntities.splice(newOrder, 0, draggedEntity);
+        if (draggedEntity) {
+          otherEntities.splice(newOrder, 0, draggedEntity);
+        }
         
         // Update order for all entities
         const reorderedEntities = otherEntities.map((entity, index) => ({
@@ -204,7 +242,7 @@ const BusinessDomainModeler = () => {
   // Add attribute, state, or action
   const addAttribute = () => {
     if (!selectedEntity) return;
-    const newAttributes = [...selectedEntity.attributes, { name: 'attribute', type: 'string' }];
+    const newAttributes: Attribute[] = [...selectedEntity.attributes, { name: 'attribute', type: 'string' }];
     updateEntity(selectedEntity.id, { attributes: newAttributes });
   };
 
@@ -221,40 +259,40 @@ const BusinessDomainModeler = () => {
   };
 
   // Remove items
-  const removeAttribute = (index) => {
+  const removeAttribute = (index: number) => {
     if (!selectedEntity) return;
     const newAttributes = selectedEntity.attributes.filter((_, i) => i !== index);
     updateEntity(selectedEntity.id, { attributes: newAttributes });
   };
 
-  const removeState = (index) => {
+  const removeState = (index: number) => {
     if (!selectedEntity) return;
     const newStates = selectedEntity.states.filter((_, i) => i !== index);
     updateEntity(selectedEntity.id, { states: newStates });
   };
 
-  const removeAction = (index) => {
+  const removeAction = (index: number) => {
     if (!selectedEntity) return;
     const newActions = selectedEntity.actions.filter((_, i) => i !== index);
     updateEntity(selectedEntity.id, { actions: newActions });
   };
 
   // Update items
-  const updateAttribute = (index, field, value) => {
+  const updateAttribute = (index: number, field: keyof Attribute, value: string) => {
     if (!selectedEntity) return;
     const newAttributes = [...selectedEntity.attributes];
     newAttributes[index] = { ...newAttributes[index], [field]: value };
     updateEntity(selectedEntity.id, { attributes: newAttributes });
   };
 
-  const updateState = (index, value) => {
+  const updateState = (index: number, value: string) => {
     if (!selectedEntity) return;
     const newStates = [...selectedEntity.states];
     newStates[index] = value;
     updateEntity(selectedEntity.id, { states: newStates });
   };
 
-  const updateAction = (index, value) => {
+  const updateAction = (index: number, value: string) => {
     if (!selectedEntity) return;
     const newActions = [...selectedEntity.actions];
     newActions[index] = value;
@@ -300,14 +338,18 @@ const BusinessDomainModeler = () => {
     fileInputRef.current?.click();
   };
 
-  const handleFileImport = (event) => {
-    const file = event.target.files[0];
+  const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const jsonData = JSON.parse(e.target.result);
+        const result = e.target?.result;
+        if (typeof result !== 'string') {
+          throw new Error('Failed to read file content');
+        }
+        const jsonData = JSON.parse(result);
         
         // Validate the imported data structure
         if (!jsonData.entities || !Array.isArray(jsonData.entities)) {
@@ -338,7 +380,8 @@ const BusinessDomainModeler = () => {
         alert(`Model imported successfully!\n${importedModel.entities.length} entities, ${importedModel.relationships.length} relationships`);
       } catch (error) {
         console.error('Import failed:', error);
-        alert(`Import failed: ${error.message}`);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        alert(`Import failed: ${errorMessage}`);
       }
     };
 
@@ -413,7 +456,7 @@ const BusinessDomainModeler = () => {
   };
 
   // Update relationship label
-  const updateRelationshipLabel = (relId, newLabel) => {
+  const updateRelationshipLabel = (relId: string, newLabel: string) => {
     const oldRel = model.relationships.find(r => r.id === relId);
     if (!oldRel) return;
 
@@ -441,7 +484,7 @@ const BusinessDomainModeler = () => {
   };
 
   // Get relationships for an entity
-  const getEntityRelationships = (entityId) => {
+  const getEntityRelationships = (entityId: string) => {
     return {
       outgoing: model.relationships.filter(r => r.from === entityId),
       incoming: model.relationships.filter(r => r.to === entityId)
@@ -650,7 +693,7 @@ const BusinessDomainModeler = () => {
               {/* Attributes */}
               <div className="mb-4">
                 <label className="block text-sm font-medium mb-2">Attributes:</label>
-                {(selectedEntity.attributes || []).map((attr, i) => (
+                {(selectedEntity.attributes || []).map((attr: Attribute, i: number) => (
                   <div key={i} className="flex gap-2 mb-2">
                     <input
                       type="text"
@@ -689,7 +732,7 @@ const BusinessDomainModeler = () => {
               {/* States */}
               <div className="mb-4">
                 <label className="block text-sm font-medium mb-2">States:</label>
-                {(selectedEntity.states || []).map((state, i) => (
+                {(selectedEntity.states || []).map((state: string, i: number) => (
                   <div key={i} className="flex gap-2 mb-2">
                     <input
                       type="text"
@@ -716,7 +759,7 @@ const BusinessDomainModeler = () => {
               {/* Actions */}
               <div className="mb-4">
                 <label className="block text-sm font-medium mb-2">Actions:</label>
-                {(selectedEntity.actions || []).map((action, i) => (
+                {(selectedEntity.actions || []).map((action: string, i: number) => (
                   <div key={i} className="flex gap-2 mb-2">
                     <input
                       type="text"
