@@ -1,39 +1,27 @@
 import React, { useState, useRef, useCallback } from 'react';
 import html2canvas from 'html2canvas';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  horizontalListSortingStrategy,
+} from '@dnd-kit/sortable';
 
-// TypeScript interfaces
-interface Attribute {
-  name: string;
-  type: 'string' | 'number' | 'boolean' | 'date' | 'enum';
-}
+import { Entity, Model, Attribute } from './types';
+import Toolbar from './components/Toolbar';
+import LeftSidebar from './components/LeftSidebar';
+import RightSidebar from './components/RightSidebar';
+import EntityCard from './components/EntityCard';
 
-interface Entity {
-  id: string;
-  name: string;
-  order: number;
-  attributes: Attribute[];
-  states: string[];
-  actions: string[];
-}
-
-interface Relationship {
-  id: string;
-  from: string;
-  to: string;
-  label: string;
-}
-
-interface Model {
-  entities: Entity[];
-  relationships: Relationship[];
-}
-
-interface DragState {
-  isDragging: boolean;
-  entityId: string;
-  startX: number;
-  currentOrder: number;
-}
 
 const BusinessDomainModeler = () => {
   const [model, setModel] = useState<Model>({
@@ -43,7 +31,6 @@ const BusinessDomainModeler = () => {
   const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null);
   const [isCreatingRelationship, setIsCreatingRelationship] = useState(false);
   const [relationshipStart, setRelationshipStart] = useState<Entity | null>(null);
-  const [dragState, setDragState] = useState<DragState | null>(null);
   
   // Add missing state variables
   const [history, setHistory] = useState<Model[]>([{ entities: [], relationships: [] }]);
@@ -143,10 +130,41 @@ const BusinessDomainModeler = () => {
     }
   };
 
+  // dndkit sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Handle drag end
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (active.id !== over?.id) {
+      const oldIndex = model.entities.findIndex(entity => entity.id === active.id);
+      const newIndex = model.entities.findIndex(entity => entity.id === over?.id);
+
+      const reorderedEntities = arrayMove(model.entities, oldIndex, newIndex).map((entity, index) => ({
+        ...entity,
+        order: index
+      }));
+
+      const newModel = {
+        ...model,
+        entities: reorderedEntities
+      };
+
+      setModel(newModel);
+      saveToHistory(newModel);
+    }
+  };
+
   // Handle entity click for relationship creation
   const handleEntityClick = (e: React.MouseEvent, entity: Entity) => {
     e.stopPropagation();
-    
+
     if (isCreatingRelationship) {
       if (relationshipStart) {
         // Complete relationship
@@ -157,12 +175,12 @@ const BusinessDomainModeler = () => {
             to: entity.id,
             label: 'relates to'
           };
-          
+
           const newModel = {
             ...model,
             relationships: [...model.relationships, newRelationship]
           };
-          
+
           setModel(newModel);
           saveToHistory(newModel);
           console.log('Created relationship:', newRelationship); // Debug log
@@ -179,65 +197,6 @@ const BusinessDomainModeler = () => {
     setSelectedEntity(entity);
   };
 
-  // Handle entity drag for reordering (horizontal)
-  const handleMouseDown = (e: React.MouseEvent, entity: Entity) => {
-    if (isCreatingRelationship) {
-      return; // Don't drag when creating relationships
-    }
-
-    setDragState({
-      isDragging: true,
-      entityId: entity.id,
-      startX: e.clientX, // Use X for horizontal movement
-      currentOrder: entity.order
-    });
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (dragState && dragState.isDragging) {
-      // Calculate which position we should move to based on mouse X
-      const deltaX = e.clientX - dragState.startX;
-      const entityWidth = 320; // Approximate width including margin
-      const orderChange = Math.round(deltaX / entityWidth);
-      const newOrder = Math.max(0, Math.min(model.entities.length - 1, dragState.currentOrder + orderChange));
-      
-      if (newOrder !== dragState.currentOrder) {
-        // Reorder entities
-        const sortedEntities = [...model.entities].sort((a, b) => a.order - b.order);
-        const draggedEntity = sortedEntities.find(e => e.id === dragState.entityId);
-        const otherEntities = sortedEntities.filter(e => e.id !== dragState.entityId);
-        
-        // Insert at new position
-        if (draggedEntity) {
-          otherEntities.splice(newOrder, 0, draggedEntity);
-        }
-        
-        // Update order for all entities
-        const reorderedEntities = otherEntities.map((entity, index) => ({
-          ...entity,
-          order: index
-        }));
-        
-        const newModel = {
-          ...model,
-          entities: reorderedEntities
-        };
-        
-        setModel(newModel);
-        setDragState({
-          ...dragState,
-          currentOrder: newOrder
-        });
-      }
-    }
-  };
-
-  const handleMouseUp = () => {
-    if (dragState && dragState.isDragging) {
-      saveToHistory(model);
-    }
-    setDragState(null);
-  };
 
   // Add attribute, state, or action
   const addAttribute = () => {
@@ -483,187 +442,61 @@ const BusinessDomainModeler = () => {
     saveToHistory(newModel);
   };
 
-  // Get relationships for an entity
-  const getEntityRelationships = (entityId: string) => {
-    return {
-      outgoing: model.relationships.filter(r => r.from === entityId),
-      incoming: model.relationships.filter(r => r.to === entityId)
-    };
-  };
+
 
   return (
     <div className="w-full h-screen bg-gray-50 flex flex-col">
-      {/* Top Toolbar */}
-      <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-4">
-        <button 
-          onClick={newModel}
-          className="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
-        >
-          New
-        </button>
-        <button 
-          onClick={importJSON}
-          className="px-3 py-1 bg-orange-500 text-white rounded text-sm hover:bg-orange-600"
-        >
-          Import JSON
-        </button>
-        <button 
-          onClick={exportAsJSON}
-          className="px-3 py-1 bg-green-500 text-white rounded text-sm hover:bg-green-600"
-        >
-          Export JSON
-        </button>
-        <button 
-          onClick={exportAsPNG}
-          className="px-3 py-1 bg-purple-500 text-white rounded text-sm hover:bg-purple-600"
-        >
-          Export PNG
-        </button>
-        
-        {/* Hidden file input for JSON import */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".json"
-          onChange={handleFileImport}
-          style={{ display: 'none' }}
-        />
-        <div className="ml-auto text-sm text-gray-500">
-          Ctrl+Z: Undo | Ctrl+Y: Redo | Del: Delete Selected
-        </div>
-      </div>
+      <Toolbar
+        onNewModel={newModel}
+        onImportJSON={importJSON}
+        onExportJSON={exportAsJSON}
+        onExportPNG={exportAsPNG}
+        fileInputRef={fileInputRef}
+        onFileImport={handleFileImport}
+      />
 
       <div className="flex flex-1">
-        {/* Left Sidebar */}
-        <div className="w-48 bg-white border-r border-gray-200 p-4">
-          <h3 className="font-semibold mb-4">Tools</h3>
-          <div className="space-y-2">
-            <button
-              onClick={addEntity}
-              className="w-full px-3 py-2 bg-blue-100 text-blue-800 rounded hover:bg-blue-200"
-            >
-              + Add Entity
-            </button>
-            <button
-              onClick={() => setIsCreatingRelationship(!isCreatingRelationship)}
-              className={`w-full px-3 py-2 rounded ${
-                isCreatingRelationship 
-                  ? 'bg-orange-200 text-orange-800' 
-                  : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
-              }`}
-            >
-              {isCreatingRelationship ? 'Cancel Relationship' : '+ Add Relationship'}
-            </button>
-          </div>
-          
-          {isCreatingRelationship && (
-            <div className="mt-4 p-2 bg-orange-50 rounded text-sm">
-              {relationshipStart 
-                ? `Click another entity to connect to "${relationshipStart.name}"` 
-                : 'Click an entity to start the relationship'
-              }
-            </div>
-          )}
-        </div>
+        <LeftSidebar
+          onAddEntity={addEntity}
+          isCreatingRelationship={isCreatingRelationship}
+          onToggleRelationshipMode={() => setIsCreatingRelationship(!isCreatingRelationship)}
+          relationshipStart={relationshipStart}
+        />
 
         {/* Canvas Area */}
         <div className="flex-1 relative overflow-auto">
-          <div 
+          <div
             ref={canvasRef}
             className="w-full min-h-full p-6 bg-gray-50"
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
           >
-            <div className="flex gap-6 justify-start items-start">
-              {/* Entities in column layout */}
-              {[...model.entities]
-                .sort((a, b) => (a.order || 0) - (b.order || 0))
-                .map(entity => (
-                <div
-                  key={entity.id}
-                  className={`bg-white border-2 rounded-lg p-4 select-none transition-all ${
-                    selectedEntity?.id === entity.id 
-                      ? 'border-blue-500 shadow-lg' 
-                      : 'border-gray-300 hover:border-gray-400'
-                  } ${relationshipStart?.id === entity.id ? 'border-orange-500 shadow-orange-200 shadow-lg' : ''} ${
-                    isCreatingRelationship ? 'cursor-pointer' : 'cursor-move'
-                  } ${dragState?.entityId === entity.id ? 'opacity-75 transform scale-105' : ''}`}
-                  style={{ 
-                    width: '280px',
-                    minHeight: '120px'
-                  }}
-                  onClick={(e) => handleEntityClick(e, entity)}
-                  onMouseDown={(e) => handleMouseDown(e, entity)}
-                >
-                  <div className="font-semibold text-gray-900 mb-3 text-lg">
-                    {entity.name}
-                  </div>
-                  
-                  {/* Attributes */}
-                  {(entity.attributes || []).length > 0 && (
-                    <div className="mb-2">
-                      <div className="text-xs font-medium text-gray-700 mb-1">Attributes:</div>
-                      {(entity.attributes || []).map((attr, i) => (
-                        <div key={i} className="text-xs text-gray-600 ml-2">
-                          • {attr.name}: {attr.type}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  
-                  {/* States */}
-                  {entity.states && entity.states.length > 0 && (
-                    <div className="mb-2">
-                      <div className="text-xs font-medium text-blue-700 mb-1">States:</div>
-                      <div className="text-xs text-blue-600 ml-2">
-                        {entity.states.join(', ')}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Actions */}
-                  {entity.actions && entity.actions.length > 0 && (
-                    <div className="mb-2">
-                      <div className="text-xs font-medium text-green-700 mb-1">Actions:</div>
-                      <div className="text-xs text-green-600 ml-2">
-                        {entity.actions.join(', ')}
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Relationships */}
-                  {(() => {
-                    const rels = getEntityRelationships(entity.id);
-                    const allRels = [...rels.outgoing, ...rels.incoming];
-                    if (allRels.length === 0) return null;
-                    
-                    return (
-                      <div className="border-t border-gray-200 pt-2 mt-2">
-                        <div className="text-xs font-medium text-purple-700 mb-1">Relationships:</div>
-                        <div className="text-xs text-purple-600 ml-2">
-                          {rels.outgoing.map(rel => {
-                            const target = model.entities.find(e => e.id === rel.to);
-                            const displayLabel = rel.label === 'belongs to' ? 'contains' : rel.label;
-                            return (
-                              <div key={rel.id}>• {displayLabel} {target?.name}</div>
-                            );
-                          })}
-                          {rels.incoming.map(rel => {
-                            const source = model.entities.find(e => e.id === rel.from);
-                            const displayLabel = rel.label === 'contains' ? 'belongs to' : rel.label;
-                            return (
-                              <div key={rel.id}>• {displayLabel} {source?.name}</div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })()}
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={model.entities.map(e => e.id)}
+                strategy={horizontalListSortingStrategy}
+              >
+                <div className="flex gap-6 justify-start items-start">
+                  {[...model.entities]
+                    .sort((a, b) => (a.order || 0) - (b.order || 0))
+                    .map(entity => (
+                      <EntityCard
+                        key={entity.id}
+                        entity={entity}
+                        selectedEntity={selectedEntity}
+                        relationshipStart={relationshipStart}
+                        isCreatingRelationship={isCreatingRelationship}
+                        entities={model.entities}
+                        relationships={model.relationships}
+                        onEntityClick={handleEntityClick}
+                      />
+                    ))}
                 </div>
-              ))}
-            </div>
-            
+              </SortableContext>
+            </DndContext>
+
             {model.entities.length === 0 && (
               <div className="text-center text-gray-500 mt-20">
                 <div className="text-xl mb-2">No entities yet</div>
@@ -673,207 +506,24 @@ const BusinessDomainModeler = () => {
           </div>
         </div>
 
-        {/* Right Sidebar - Properties Panel */}
-        <div className="w-64 bg-white border-l border-gray-200 p-4 overflow-y-auto">
-          {selectedEntity ? (
-            <div>
-              <h3 className="font-semibold mb-4">Properties</h3>
-              
-              {/* Entity Name */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-1">Name:</label>
-                <input
-                  type="text"
-                  value={selectedEntity.name}
-                  onChange={(e) => updateEntity(selectedEntity.id, { name: e.target.value })}
-                  className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                />
-              </div>
-
-              {/* Attributes */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-2">Attributes:</label>
-                {(selectedEntity.attributes || []).map((attr: Attribute, i: number) => (
-                  <div key={i} className="flex gap-2 mb-2">
-                    <input
-                      type="text"
-                      value={attr.name || ''}
-                      onChange={(e) => updateAttribute(i, 'name', e.target.value)}
-                      className="flex-1 px-2 py-1 border border-gray-300 rounded text-xs"
-                      placeholder="name"
-                    />
-                    <select
-                      value={attr.type || 'string'}
-                      onChange={(e) => updateAttribute(i, 'type', e.target.value)}
-                      className="px-2 py-1 border border-gray-300 rounded text-xs"
-                    >
-                      <option value="string">string</option>
-                      <option value="number">number</option>
-                      <option value="boolean">boolean</option>
-                      <option value="date">date</option>
-                      <option value="enum">enum</option>
-                    </select>
-                    <button
-                      onClick={() => removeAttribute(i)}
-                      className="px-2 py-1 bg-red-100 text-red-600 rounded text-xs hover:bg-red-200"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-                <button
-                  onClick={addAttribute}
-                  className="text-sm text-blue-600 hover:text-blue-800"
-                >
-                  + Add Attribute
-                </button>
-              </div>
-
-              {/* States */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-2">States:</label>
-                {(selectedEntity.states || []).map((state: string, i: number) => (
-                  <div key={i} className="flex gap-2 mb-2">
-                    <input
-                      type="text"
-                      value={state || ''}
-                      onChange={(e) => updateState(i, e.target.value)}
-                      className="flex-1 px-2 py-1 border border-gray-300 rounded text-xs"
-                    />
-                    <button
-                      onClick={() => removeState(i)}
-                      className="px-2 py-1 bg-red-100 text-red-600 rounded text-xs hover:bg-red-200"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-                <button
-                  onClick={addState}
-                  className="text-sm text-blue-600 hover:text-blue-800"
-                >
-                  + Add State
-                </button>
-              </div>
-
-              {/* Actions */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-2">Actions:</label>
-                {(selectedEntity.actions || []).map((action: string, i: number) => (
-                  <div key={i} className="flex gap-2 mb-2">
-                    <input
-                      type="text"
-                      value={action || ''}
-                      onChange={(e) => updateAction(i, e.target.value)}
-                      className="flex-1 px-2 py-1 border border-gray-300 rounded text-xs"
-                    />
-                    <button
-                      onClick={() => removeAction(i)}
-                      className="px-2 py-1 bg-red-100 text-red-600 rounded text-xs hover:bg-red-200"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-                <button
-                  onClick={addAction}
-                  className="text-sm text-blue-600 hover:text-blue-800"
-                >
-                  + Add Action
-                </button>
-              </div>
-
-              <button
-                onClick={() => deleteEntity(selectedEntity.id)}
-                className="w-full px-3 py-2 bg-red-500 text-white rounded text-sm hover:bg-red-600 mt-4"
-              >
-                Delete Entity
-              </button>
-
-              {/* Relationships */}
-              <div className="mt-6">
-                <h4 className="font-medium text-sm mb-2">Relationships:</h4>
-                {(() => {
-                  const rels = getEntityRelationships(selectedEntity.id);
-                  const hasRelationships = rels.outgoing.length > 0 || rels.incoming.length > 0;
-                  
-                  if (!hasRelationships) {
-                    return <div className="text-xs text-gray-500">No relationships</div>;
-                  }
-                  
-                  return (
-                    <div className="space-y-2">
-                      {rels.outgoing.map(rel => {
-                        const targetEntity = model.entities.find(e => e.id === rel.to);
-                        const displayLabel = rel.label === 'belongs to' ? 'contains' : rel.label;
-                        const dropdownValue = rel.label === 'belongs to' ? 'contains' : rel.label;
-                        return (
-                          <div key={rel.id} className="text-xs bg-blue-50 p-2 rounded">
-                            <div className="font-medium text-blue-800">
-                              → {targetEntity?.name || 'Unknown'}
-                            </div>
-                            <select
-                              value={dropdownValue}
-                              onChange={(e) => {
-                                // If we're showing the flipped perspective, flip the value back
-                                const actualValue = rel.label === 'belongs to' && e.target.value === 'belongs to' ? 'contains' :
-                                                   rel.label === 'belongs to' && e.target.value === 'contains' ? 'belongs to' :
-                                                   e.target.value;
-                                updateRelationshipLabel(rel.id, actualValue);
-                              }}
-                              className="w-full mt-1 px-1 py-0.5 border border-blue-200 rounded text-xs"
-                            >
-                              {relationshipTypes.map(type => (
-                                <option key={type} value={type}>{type}</option>
-                              ))}
-                            </select>
-                            <div className="text-xs text-gray-500 mt-1">
-                              This entity {displayLabel} {targetEntity?.name}
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {rels.incoming.map(rel => {
-                        const sourceEntity = model.entities.find(e => e.id === rel.from);
-                        const displayLabel = rel.label === 'contains' ? 'belongs to' : rel.label;
-                        const dropdownValue = rel.label === 'contains' ? 'belongs to' : rel.label;
-                        return (
-                          <div key={rel.id} className="text-xs bg-green-50 p-2 rounded">
-                            <div className="font-medium text-green-800">
-                              ← {sourceEntity?.name || 'Unknown'}
-                            </div>
-                            <select
-                              value={dropdownValue}
-                              onChange={(e) => {
-                                // If we're showing the flipped perspective, flip the value back
-                                const actualValue = rel.label === 'contains' && e.target.value === 'contains' ? 'belongs to' :
-                                                   rel.label === 'contains' && e.target.value === 'belongs to' ? 'contains' :
-                                                   e.target.value;
-                                updateRelationshipLabel(rel.id, actualValue);
-                              }}
-                              className="w-full mt-1 px-1 py-0.5 border border-green-200 rounded text-xs"
-                            >
-                              {relationshipTypes.map(type => (
-                                <option key={type} value={type}>{type}</option>
-                              ))}
-                            </select>
-                            <div className="text-xs text-gray-500 mt-1">
-                              This entity {displayLabel} {sourceEntity?.name}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
-              </div>
-            </div>
-          ) : (
-            <div className="text-gray-500 text-sm">
-              Select an entity to edit its properties
-            </div>
-          )}
-        </div>
+        <RightSidebar
+          selectedEntity={selectedEntity}
+          entities={model.entities}
+          relationships={model.relationships}
+          relationshipTypes={relationshipTypes}
+          onUpdateEntity={updateEntity}
+          onDeleteEntity={deleteEntity}
+          onUpdateRelationshipLabel={updateRelationshipLabel}
+          onAddAttribute={addAttribute}
+          onAddState={addState}
+          onAddAction={addAction}
+          onRemoveAttribute={removeAttribute}
+          onRemoveState={removeState}
+          onRemoveAction={removeAction}
+          onUpdateAttribute={updateAttribute}
+          onUpdateState={updateState}
+          onUpdateAction={updateAction}
+        />
       </div>
     </div>
   );
