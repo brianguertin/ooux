@@ -1,51 +1,82 @@
 import React from 'react';
-import { Entity, Relationship, Attribute } from '../types';
+import { Attribute } from '../types';
+import { useModelStore } from '../store/modelStore';
 
 interface RightSidebarProps {
-  selectedEntity: Entity | null;
-  entities: Entity[];
-  relationships: Relationship[];
-  relationshipTypes: string[];
-  isCreatingRelationship: boolean;
-  relationshipStart: Entity | null;
-  onUpdateEntity: (entityId: string, updates: Partial<Entity>) => void;
-  onDeleteEntity: (entityId: string) => void;
-  onUpdateRelationshipLabel: (relId: string, newLabel: string) => void;
-  onAddAttribute: () => void;
-  onAddState: () => void;
-  onAddAction: () => void;
-  onRemoveAttribute: (index: number) => void;
-  onRemoveState: (index: number) => void;
-  onRemoveAction: (index: number) => void;
-  onUpdateAttribute: (index: number, field: keyof Attribute, value: string) => void;
-  onUpdateState: (index: number, value: string) => void;
-  onUpdateAction: (index: number, value: string) => void;
-  onStartRelationshipFromEntity: (entity: Entity) => void;
-  onCancelRelationship: () => void;
+  // Props can now be empty - component will get everything from store
 }
 
-const RightSidebar: React.FC<RightSidebarProps> = ({
-  selectedEntity,
-  entities,
-  relationships,
-  relationshipTypes,
-  isCreatingRelationship,
-  relationshipStart,
-  onUpdateEntity,
-  onDeleteEntity,
-  onUpdateRelationshipLabel,
-  onAddAttribute,
-  onAddState,
-  onAddAction,
-  onRemoveAttribute,
-  onRemoveState,
-  onRemoveAction,
-  onUpdateAttribute,
-  onUpdateState,
-  onUpdateAction,
-  onStartRelationshipFromEntity,
-  onCancelRelationship,
-}) => {
+const RightSidebar: React.FC<RightSidebarProps> = () => {
+  // Get everything directly from the store
+  const {
+    model,
+    selectedEntity,
+    relationshipTypes,
+    isCreatingRelationship,
+    relationshipStart,
+    updateEntity,
+    deleteEntity,
+    updateRelationshipLabel,
+    addAttribute,
+    addState,
+    addAction,
+    removeAttribute,
+    removeState,
+    removeAction,
+    updateAttribute,
+    updateState,
+    updateAction,
+    startRelationshipFromEntity,
+    cancelRelationship,
+  } = useModelStore();
+  
+  const { entities, relationships } = model;
+  // Wrapper functions for store methods that need selectedEntity.id
+  const handleAddAttribute = () => {
+    if (!selectedEntity) return;
+    addAttribute(selectedEntity.id);
+  };
+
+  const handleAddState = () => {
+    if (!selectedEntity) return;
+    addState(selectedEntity.id);
+  };
+
+  const handleAddAction = () => {
+    if (!selectedEntity) return;
+    addAction(selectedEntity.id);
+  };
+
+  const handleRemoveAttribute = (index: number) => {
+    if (!selectedEntity) return;
+    removeAttribute(selectedEntity.id, index);
+  };
+
+  const handleRemoveState = (index: number) => {
+    if (!selectedEntity) return;
+    removeState(selectedEntity.id, index);
+  };
+
+  const handleRemoveAction = (index: number) => {
+    if (!selectedEntity) return;
+    removeAction(selectedEntity.id, index);
+  };
+
+  const handleUpdateAttribute = (index: number, field: keyof Attribute, value: string) => {
+    if (!selectedEntity) return;
+    updateAttribute(selectedEntity.id, index, field, value);
+  };
+
+  const handleUpdateState = (index: number, value: string) => {
+    if (!selectedEntity) return;
+    updateState(selectedEntity.id, index, value);
+  };
+
+  const handleUpdateAction = (index: number, value: string) => {
+    if (!selectedEntity) return;
+    updateAction(selectedEntity.id, index, value);
+  };
+
   // Get relationships for an entity
   const getEntityRelationships = (entityId: string) => {
     return {
@@ -75,7 +106,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
           <input
             type="text"
             value={selectedEntity.name}
-            onChange={(e) => onUpdateEntity(selectedEntity.id, { name: e.target.value })}
+            onChange={(e) => updateEntity(selectedEntity.id, { name: e.target.value })}
             className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
           />
         </div>
@@ -88,13 +119,13 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
               <input
                 type="text"
                 value={attr.name || ''}
-                onChange={(e) => onUpdateAttribute(i, 'name', e.target.value)}
+                onChange={(e) => handleUpdateAttribute(i, 'name', e.target.value)}
                 className="flex-1 px-2 py-1 border border-gray-300 rounded text-xs"
                 placeholder="name"
               />
               <select
                 value={attr.type || 'string'}
-                onChange={(e) => onUpdateAttribute(i, 'type', e.target.value)}
+                onChange={(e) => handleUpdateAttribute(i, 'type', e.target.value)}
                 className="px-2 py-1 border border-gray-300 rounded text-xs"
               >
                 <option value="string">string</option>
@@ -104,7 +135,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                 <option value="enum">enum</option>
               </select>
               <button
-                onClick={() => onRemoveAttribute(i)}
+                onClick={() => handleRemoveAttribute(i)}
                 className="px-2 py-1 bg-red-100 text-red-600 rounded text-xs hover:bg-red-200"
               >
                 ×
@@ -112,7 +143,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
             </div>
           ))}
           <button
-            onClick={onAddAttribute}
+            onClick={handleAddAttribute}
             className="text-sm text-blue-600 hover:text-blue-800"
           >
             + Add Attribute
@@ -127,11 +158,11 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
               <input
                 type="text"
                 value={state || ''}
-                onChange={(e) => onUpdateState(i, e.target.value)}
+                onChange={(e) => handleUpdateState(i, e.target.value)}
                 className="flex-1 px-2 py-1 border border-gray-300 rounded text-xs"
               />
               <button
-                onClick={() => onRemoveState(i)}
+                onClick={() => handleRemoveState(i)}
                 className="px-2 py-1 bg-red-100 text-red-600 rounded text-xs hover:bg-red-200"
               >
                 ×
@@ -139,7 +170,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
             </div>
           ))}
           <button
-            onClick={onAddState}
+            onClick={handleAddState}
             className="text-sm text-blue-600 hover:text-blue-800"
           >
             + Add State
@@ -154,11 +185,11 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
               <input
                 type="text"
                 value={action || ''}
-                onChange={(e) => onUpdateAction(i, e.target.value)}
+                onChange={(e) => handleUpdateAction(i, e.target.value)}
                 className="flex-1 px-2 py-1 border border-gray-300 rounded text-xs"
               />
               <button
-                onClick={() => onRemoveAction(i)}
+                onClick={() => handleRemoveAction(i)}
                 className="px-2 py-1 bg-red-100 text-red-600 rounded text-xs hover:bg-red-200"
               >
                 ×
@@ -166,7 +197,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
             </div>
           ))}
           <button
-            onClick={onAddAction}
+            onClick={handleAddAction}
             className="text-sm text-blue-600 hover:text-blue-800"
           >
             + Add Action
@@ -174,7 +205,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
         </div>
 
         <button
-          onClick={() => onDeleteEntity(selectedEntity.id)}
+          onClick={() => deleteEntity(selectedEntity.id)}
           className="w-full px-3 py-2 bg-red-500 text-white rounded text-sm hover:bg-red-600 mt-4"
         >
           Delete Entity
@@ -186,14 +217,14 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
             <h4 className="font-medium text-sm">Relationships:</h4>
             {isCreatingRelationship && relationshipStart?.id === selectedEntity.id ? (
               <button
-                onClick={onCancelRelationship}
+                onClick={cancelRelationship}
                 className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs hover:bg-red-200"
               >
                 Cancel
               </button>
             ) : (
               <button
-                onClick={() => onStartRelationshipFromEntity(selectedEntity)}
+                onClick={() => startRelationshipFromEntity(selectedEntity)}
                 className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs hover:bg-blue-200"
               >
                 + Add
@@ -234,7 +265,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                           const actualValue = rel.label === 'belongs to' && e.target.value === 'belongs to' ? 'contains' :
                                              rel.label === 'belongs to' && e.target.value === 'contains' ? 'belongs to' :
                                              e.target.value;
-                          onUpdateRelationshipLabel(rel.id, actualValue);
+                          updateRelationshipLabel(rel.id, actualValue);
                         }}
                         className="w-full mt-1 px-1 py-0.5 border border-blue-200 rounded text-xs"
                       >
@@ -264,7 +295,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
                           const actualValue = rel.label === 'contains' && e.target.value === 'contains' ? 'belongs to' :
                                              rel.label === 'contains' && e.target.value === 'belongs to' ? 'contains' :
                                              e.target.value;
-                          onUpdateRelationshipLabel(rel.id, actualValue);
+                          updateRelationshipLabel(rel.id, actualValue);
                         }}
                         className="w-full mt-1 px-1 py-0.5 border border-green-200 rounded text-xs"
                       >

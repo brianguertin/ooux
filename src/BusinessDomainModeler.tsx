@@ -23,34 +23,18 @@ import EntityCard from './components/EntityCard';
 
 
 const BusinessDomainModeler = () => {
-  // Zustand store hooks
+  // Zustand store hooks - only get what's needed for this component
   const {
     model,
     selectedEntity,
-    isCreatingRelationship,
-    relationshipStart,
-    relationshipTypes,
-    // Actions
+    // Actions used directly in this component
     addEntity,
     deleteEntity,
-    updateEntity,
     setSelectedEntity,
     reorderEntities,
     setModel,
     resetModel,
     handleEntityClick,
-    startRelationshipFromEntity,
-    cancelRelationship,
-    updateRelationshipLabel,
-    addAttribute,
-    addState,
-    addAction,
-    removeAttribute,
-    removeState,
-    removeAction,
-    updateAttribute,
-    updateState,
-    updateAction,
   } = useModelStore();
 
   // Refs for file operations
@@ -250,52 +234,6 @@ const BusinessDomainModeler = () => {
     useModelStore.temporal.getState().clear();
   };
 
-  // Wrapper functions to match component expected signatures
-  const handleAddAttribute = () => {
-    if (!selectedEntity) return;
-    addAttribute(selectedEntity.id);
-  };
-
-  const handleAddState = () => {
-    if (!selectedEntity) return;
-    addState(selectedEntity.id);
-  };
-
-  const handleAddAction = () => {
-    if (!selectedEntity) return;
-    addAction(selectedEntity.id);
-  };
-
-  const handleRemoveAttribute = (index: number) => {
-    if (!selectedEntity) return;
-    removeAttribute(selectedEntity.id, index);
-  };
-
-  const handleRemoveState = (index: number) => {
-    if (!selectedEntity) return;
-    removeState(selectedEntity.id, index);
-  };
-
-  const handleRemoveAction = (index: number) => {
-    if (!selectedEntity) return;
-    removeAction(selectedEntity.id, index);
-  };
-
-  const handleUpdateAttribute = (index: number, field: keyof import('./types').Attribute, value: string) => {
-    if (!selectedEntity) return;
-    updateAttribute(selectedEntity.id, index, field, value);
-  };
-
-  const handleUpdateState = (index: number, value: string) => {
-    if (!selectedEntity) return;
-    updateState(selectedEntity.id, index, value);
-  };
-
-  const handleUpdateAction = (index: number, value: string) => {
-    if (!selectedEntity) return;
-    updateAction(selectedEntity.id, index, value);
-  };
-
   const handleEntityCardClick = (e: React.MouseEvent, entity: Entity) => {
     e.stopPropagation();
     handleEntityClick(entity);
@@ -337,11 +275,6 @@ const BusinessDomainModeler = () => {
                       <EntityCard
                         key={entity.id}
                         entity={entity}
-                        selectedEntity={selectedEntity}
-                        relationshipStart={relationshipStart}
-                        isCreatingRelationship={isCreatingRelationship}
-                        entities={model.entities}
-                        relationships={model.relationships}
                         onEntityClick={handleEntityCardClick}
                       />
                     ))}
@@ -375,28 +308,7 @@ const BusinessDomainModeler = () => {
           </div>
         </div>
 
-        <RightSidebar
-          selectedEntity={selectedEntity}
-          entities={model.entities}
-          relationships={model.relationships}
-          relationshipTypes={relationshipTypes}
-          isCreatingRelationship={isCreatingRelationship}
-          relationshipStart={relationshipStart}
-          onUpdateEntity={updateEntity}
-          onDeleteEntity={deleteEntity}
-          onUpdateRelationshipLabel={updateRelationshipLabel}
-          onAddAttribute={handleAddAttribute}
-          onAddState={handleAddState}
-          onAddAction={handleAddAction}
-          onRemoveAttribute={handleRemoveAttribute}
-          onRemoveState={handleRemoveState}
-          onRemoveAction={handleRemoveAction}
-          onUpdateAttribute={handleUpdateAttribute}
-          onUpdateState={handleUpdateState}
-          onUpdateAction={handleUpdateAction}
-          onStartRelationshipFromEntity={startRelationshipFromEntity}
-          onCancelRelationship={cancelRelationship}
-        />
+        <RightSidebar />
       </div>
     </div>
   );

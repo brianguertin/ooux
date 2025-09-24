@@ -1,27 +1,27 @@
 import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Entity, Relationship } from '../types';
+import { Entity } from '../types';
+import { useModelStore } from '../store/modelStore';
 
 interface EntityCardProps {
   entity: Entity;
-  selectedEntity: Entity | null;
-  relationshipStart: Entity | null;
-  isCreatingRelationship: boolean;
-  entities: Entity[];
-  relationships: Relationship[];
   onEntityClick: (e: React.MouseEvent, entity: Entity) => void;
 }
 
 const EntityCard: React.FC<EntityCardProps> = ({
   entity,
-  selectedEntity,
-  relationshipStart,
-  isCreatingRelationship,
-  entities,
-  relationships,
   onEntityClick,
 }) => {
+  // Get data from store
+  const {
+    model,
+    selectedEntity,
+    relationshipStart,
+    isCreatingRelationship,
+  } = useModelStore();
+  
+  const { entities, relationships } = model;
   const {
     attributes,
     listeners,
