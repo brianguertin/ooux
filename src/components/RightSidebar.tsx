@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { Attribute } from '../types';
 import { useModelStore } from '../store/modelStore';
 
@@ -7,6 +7,11 @@ interface RightSidebarProps {
 }
 
 const RightSidebar: React.FC<RightSidebarProps> = () => {
+  // Refs for auto-focusing new inputs
+  const lastAttributeRef = useRef<HTMLInputElement>(null);
+  const lastStateRef = useRef<HTMLInputElement>(null);
+  const lastActionRef = useRef<HTMLInputElement>(null);
+  
   // Get everything directly from the store
   const {
     model,
@@ -35,16 +40,39 @@ const RightSidebar: React.FC<RightSidebarProps> = () => {
   const handleAddAttribute = () => {
     if (!selectedEntity) return;
     addAttribute(selectedEntity.id);
+    // Focus the new input after a short delay to allow DOM update
+    setTimeout(() => lastAttributeRef.current?.focus(), 0);
   };
 
   const handleAddState = () => {
     if (!selectedEntity) return;
     addState(selectedEntity.id);
+    // Focus the new input after a short delay to allow DOM update
+    setTimeout(() => lastStateRef.current?.focus(), 0);
   };
 
   const handleAddAction = () => {
     if (!selectedEntity) return;
     addAction(selectedEntity.id);
+    // Focus the new input after a short delay to allow DOM update
+    setTimeout(() => lastActionRef.current?.focus(), 0);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent, type: 'attribute' | 'state' | 'action') => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      switch (type) {
+        case 'attribute':
+          handleAddAttribute();
+          break;
+        case 'state':
+          handleAddState();
+          break;
+        case 'action':
+          handleAddAction();
+          break;
+      }
+    }
   };
 
   const handleRemoveAttribute = (index: number) => {
@@ -117,11 +145,13 @@ const RightSidebar: React.FC<RightSidebarProps> = () => {
           {(selectedEntity.attributes || []).map((attr: Attribute, i: number) => (
             <div key={i} className="flex gap-2 mb-2">
               <input
+                ref={i === (selectedEntity.attributes || []).length - 1 ? lastAttributeRef : undefined}
                 type="text"
                 value={attr.name || ''}
                 onChange={(e) => handleUpdateAttribute(i, 'name', e.target.value)}
+                onKeyDown={(e) => handleKeyDown(e, 'attribute')}
                 className="flex-1 px-2 py-1 border border-gray-300 rounded text-xs"
-                placeholder="name"
+                placeholder="attribute name"
               />
               <select
                 value={attr.type || 'string'}
@@ -156,10 +186,13 @@ const RightSidebar: React.FC<RightSidebarProps> = () => {
           {(selectedEntity.states || []).map((state: string, i: number) => (
             <div key={i} className="flex gap-2 mb-2">
               <input
+                ref={i === (selectedEntity.states || []).length - 1 ? lastStateRef : undefined}
                 type="text"
                 value={state || ''}
                 onChange={(e) => handleUpdateState(i, e.target.value)}
+                onKeyDown={(e) => handleKeyDown(e, 'state')}
                 className="flex-1 px-2 py-1 border border-gray-300 rounded text-xs"
+                placeholder="state name"
               />
               <button
                 onClick={() => handleRemoveState(i)}
@@ -183,10 +216,13 @@ const RightSidebar: React.FC<RightSidebarProps> = () => {
           {(selectedEntity.actions || []).map((action: string, i: number) => (
             <div key={i} className="flex gap-2 mb-2">
               <input
+                ref={i === (selectedEntity.actions || []).length - 1 ? lastActionRef : undefined}
                 type="text"
                 value={action || ''}
                 onChange={(e) => handleUpdateAction(i, e.target.value)}
+                onKeyDown={(e) => handleKeyDown(e, 'action')}
                 className="flex-1 px-2 py-1 border border-gray-300 rounded text-xs"
+                placeholder="action name"
               />
               <button
                 onClick={() => handleRemoveAction(i)}

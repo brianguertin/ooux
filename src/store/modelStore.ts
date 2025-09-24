@@ -217,7 +217,7 @@ export const useModelStore = create<ModelStore>()(
         if (!entity) return;
         
         get().updateEntity(entityId, {
-          attributes: [...entity.attributes, { name: 'attribute', type: 'string' }]
+          attributes: [...entity.attributes, { name: '', type: 'string' }]
         });
       },
       
@@ -227,7 +227,7 @@ export const useModelStore = create<ModelStore>()(
         if (!entity) return;
         
         get().updateEntity(entityId, {
-          states: [...entity.states, 'new_state']
+          states: [...entity.states, '']
         });
       },
       
@@ -237,7 +237,7 @@ export const useModelStore = create<ModelStore>()(
         if (!entity) return;
         
         get().updateEntity(entityId, {
-          actions: [...entity.actions, 'new_action']
+          actions: [...entity.actions, '']
         });
       },
       
