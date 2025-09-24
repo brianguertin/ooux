@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useRef, useEffect } from 'react';
 import html2canvas from 'html2canvas';
 import {
   DndContext,
@@ -10,66 +10,63 @@ import {
   DragEndEvent,
 } from '@dnd-kit/core';
 import {
-  arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
   horizontalListSortingStrategy,
 } from '@dnd-kit/sortable';
 
-import { Entity, Model, Attribute } from './types';
+import { Entity } from './types';
+import { useModelStore } from './store/modelStore';
 import Toolbar from './components/Toolbar';
 import RightSidebar from './components/RightSidebar';
 import EntityCard from './components/EntityCard';
 
 
 const BusinessDomainModeler = () => {
-  const [model, setModel] = useState<Model>({
-    entities: [],
-    relationships: []
-  });
-  const [selectedEntity, setSelectedEntity] = useState<Entity | null>(null);
-  const [isCreatingRelationship, setIsCreatingRelationship] = useState(false);
-  const [relationshipStart, setRelationshipStart] = useState<Entity | null>(null);
-  
-  // Add missing state variables
-  const [history, setHistory] = useState<Model[]>([{ entities: [], relationships: [] }]);
-  const [historyIndex, setHistoryIndex] = useState(0);
+  // Zustand store hooks
+  const {
+    model,
+    selectedEntity,
+    isCreatingRelationship,
+    relationshipStart,
+    relationshipTypes,
+    // Actions
+    addEntity,
+    deleteEntity,
+    updateEntity,
+    setSelectedEntity,
+    reorderEntities,
+    setModel,
+    resetModel,
+    handleEntityClick,
+    startRelationshipFromEntity,
+    cancelRelationship,
+    updateRelationshipLabel,
+    addAttribute,
+    addState,
+    addAction,
+    removeAttribute,
+    removeState,
+    removeAction,
+    updateAttribute,
+    updateState,
+    updateAction,
+  } = useModelStore();
+
+  // Refs for file operations
   const canvasRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Predefined relationship types
-  const relationshipTypes = [
-    'relates to',
-    'contains',
-    'belongs to'
-  ];
-
-  // Save state to history for undo/redo
-  const saveToHistory = useCallback((newModel: Model) => {
-    const newHistory = history.slice(0, historyIndex + 1);
-    newHistory.push(JSON.parse(JSON.stringify(newModel)));
-    setHistory(newHistory);
-    setHistoryIndex(newHistory.length - 1);
-  }, [history, historyIndex]);
-
-  // Keyboard shortcuts
-  React.useEffect(() => {
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey) {
         if (e.key === 'z' && !e.shiftKey) {
           e.preventDefault();
-          if (historyIndex > 0) {
-            setHistoryIndex(historyIndex - 1);
-            setModel(JSON.parse(JSON.stringify(history[historyIndex - 1])));
-            setSelectedEntity(null);
-          }
+          useModelStore.temporal.getState().undo();
         } else if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) {
           e.preventDefault();
-          if (historyIndex < history.length - 1) {
-            setHistoryIndex(historyIndex + 1);
-            setModel(JSON.parse(JSON.stringify(history[historyIndex + 1])));
-            setSelectedEntity(null);
-          }
+          useModelStore.temporal.getState().redo();
         }
       }
       if (e.key === 'Delete' && selectedEntity) {
@@ -79,55 +76,7 @@ const BusinessDomainModeler = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedEntity, historyIndex, history]);
-
-  // Add new entity
-  const addEntity = () => {
-    const newEntity = {
-      id: `entity-${Date.now()}`,
-      name: 'New Entity',
-      order: model.entities.length, // Use order instead of x/y
-      attributes: [],
-      states: [],
-      actions: []
-    };
-
-    const newModel = {
-      ...model,
-      entities: [...model.entities, newEntity]
-    };
-
-    setModel(newModel);
-    saveToHistory(newModel);
-    setSelectedEntity(newEntity);
-  };
-
-  // Delete entity
-  const deleteEntity = (entityId: string) => {
-    const newModel = {
-      entities: model.entities.filter(e => e.id !== entityId),
-      relationships: model.relationships.filter(r => r.from !== entityId && r.to !== entityId)
-    };
-    
-    setModel(newModel);
-    saveToHistory(newModel);
-    setSelectedEntity(null);
-  };
-
-  // Update entity
-  const updateEntity = (entityId: string, updates: Partial<Entity>) => {
-    const newModel = {
-      ...model,
-      entities: model.entities.map(e => 
-        e.id === entityId ? { ...e, ...updates } : e
-      )
-    };
-    
-    setModel(newModel);
-    if (selectedEntity) {
-      setSelectedEntity({ ...selectedEntity, ...updates });
-    }
-  };
+  }, [selectedEntity, deleteEntity]);
 
   // dndkit sensors
   const sensors = useSensors(
@@ -144,130 +93,10 @@ const BusinessDomainModeler = () => {
     if (active.id !== over?.id) {
       const oldIndex = model.entities.findIndex(entity => entity.id === active.id);
       const newIndex = model.entities.findIndex(entity => entity.id === over?.id);
-
-      const reorderedEntities = arrayMove(model.entities, oldIndex, newIndex).map((entity, index) => ({
-        ...entity,
-        order: index
-      }));
-
-      const newModel = {
-        ...model,
-        entities: reorderedEntities
-      };
-
-      setModel(newModel);
-      saveToHistory(newModel);
+      reorderEntities(oldIndex, newIndex);
     }
   };
 
-  // Start relationship from a specific entity (called from sidebar)
-  const startRelationshipFromEntity = (entity: Entity) => {
-    setIsCreatingRelationship(true);
-    setRelationshipStart(entity);
-  };
-
-  // Cancel relationship creation
-  const cancelRelationship = () => {
-    setIsCreatingRelationship(false);
-    setRelationshipStart(null);
-  };
-
-  // Handle entity click for relationship creation
-  const handleEntityClick = (e: React.MouseEvent, entity: Entity) => {
-    e.stopPropagation();
-
-    if (isCreatingRelationship) {
-      if (relationshipStart) {
-        // Complete relationship
-        if (relationshipStart.id !== entity.id) {
-          const newRelationship = {
-            id: `rel-${Date.now()}`,
-            from: relationshipStart.id,
-            to: entity.id,
-            label: 'relates to'
-          };
-
-          const newModel = {
-            ...model,
-            relationships: [...model.relationships, newRelationship]
-          };
-
-          setModel(newModel);
-          saveToHistory(newModel);
-          console.log('Created relationship:', newRelationship); // Debug log
-        }
-        setIsCreatingRelationship(false);
-        setRelationshipStart(null);
-      } else {
-        setRelationshipStart(entity);
-        console.log('Started relationship from:', entity.name); // Debug log
-      }
-      return;
-    }
-
-    setSelectedEntity(entity);
-  };
-
-
-  // Add attribute, state, or action
-  const addAttribute = () => {
-    if (!selectedEntity) return;
-    const newAttributes: Attribute[] = [...selectedEntity.attributes, { name: 'attribute', type: 'string' }];
-    updateEntity(selectedEntity.id, { attributes: newAttributes });
-  };
-
-  const addState = () => {
-    if (!selectedEntity) return;
-    const newStates = [...selectedEntity.states, 'new_state'];
-    updateEntity(selectedEntity.id, { states: newStates });
-  };
-
-  const addAction = () => {
-    if (!selectedEntity) return;
-    const newActions = [...selectedEntity.actions, 'new_action'];
-    updateEntity(selectedEntity.id, { actions: newActions });
-  };
-
-  // Remove items
-  const removeAttribute = (index: number) => {
-    if (!selectedEntity) return;
-    const newAttributes = selectedEntity.attributes.filter((_, i) => i !== index);
-    updateEntity(selectedEntity.id, { attributes: newAttributes });
-  };
-
-  const removeState = (index: number) => {
-    if (!selectedEntity) return;
-    const newStates = selectedEntity.states.filter((_, i) => i !== index);
-    updateEntity(selectedEntity.id, { states: newStates });
-  };
-
-  const removeAction = (index: number) => {
-    if (!selectedEntity) return;
-    const newActions = selectedEntity.actions.filter((_, i) => i !== index);
-    updateEntity(selectedEntity.id, { actions: newActions });
-  };
-
-  // Update items
-  const updateAttribute = (index: number, field: keyof Attribute, value: string) => {
-    if (!selectedEntity) return;
-    const newAttributes = [...selectedEntity.attributes];
-    newAttributes[index] = { ...newAttributes[index], [field]: value };
-    updateEntity(selectedEntity.id, { attributes: newAttributes });
-  };
-
-  const updateState = (index: number, value: string) => {
-    if (!selectedEntity) return;
-    const newStates = [...selectedEntity.states];
-    newStates[index] = value;
-    updateEntity(selectedEntity.id, { states: newStates });
-  };
-
-  const updateAction = (index: number, value: string) => {
-    if (!selectedEntity) return;
-    const newActions = [...selectedEntity.actions];
-    newActions[index] = value;
-    updateEntity(selectedEntity.id, { actions: newActions });
-  };
 
   // Export and import functions
   const exportAsJSON = () => {
@@ -343,8 +172,7 @@ const BusinessDomainModeler = () => {
 
         setModel(importedModel);
         setSelectedEntity(null);
-        setHistory([importedModel]);
-        setHistoryIndex(0);
+        useModelStore.temporal.getState().clear();
         
         console.log('Model imported successfully:', importedModel);
         alert(`Model imported successfully!\n${importedModel.entities.length} entities, ${importedModel.relationships.length} relationships`);
@@ -418,39 +246,59 @@ const BusinessDomainModeler = () => {
       return;
     }
     
-    const emptyModel = { entities: [], relationships: [] };
-    setModel(emptyModel);
-    setSelectedEntity(null);
-    setHistory([emptyModel]);
-    setHistoryIndex(0);
+    resetModel();
+    useModelStore.temporal.getState().clear();
   };
 
-  // Update relationship label
-  const updateRelationshipLabel = (relId: string, newLabel: string) => {
-    const oldRel = model.relationships.find(r => r.id === relId);
-    if (!oldRel) return;
+  // Wrapper functions to match component expected signatures
+  const handleAddAttribute = () => {
+    if (!selectedEntity) return;
+    addAttribute(selectedEntity.id);
+  };
 
-    let updatedRel = { ...oldRel, label: newLabel };
+  const handleAddState = () => {
+    if (!selectedEntity) return;
+    addState(selectedEntity.id);
+  };
 
-    // If switching between contains and belongs to, flip the relationship direction
-    if ((oldRel.label === 'contains' && newLabel === 'belongs to') || 
-        (oldRel.label === 'belongs to' && newLabel === 'contains')) {
-      updatedRel = {
-        ...updatedRel,
-        from: oldRel.to,
-        to: oldRel.from
-      };
-    }
+  const handleAddAction = () => {
+    if (!selectedEntity) return;
+    addAction(selectedEntity.id);
+  };
 
-    const newModel = {
-      ...model,
-      relationships: model.relationships.map(r => 
-        r.id === relId ? updatedRel : r
-      )
-    };
-    
-    setModel(newModel);
-    saveToHistory(newModel);
+  const handleRemoveAttribute = (index: number) => {
+    if (!selectedEntity) return;
+    removeAttribute(selectedEntity.id, index);
+  };
+
+  const handleRemoveState = (index: number) => {
+    if (!selectedEntity) return;
+    removeState(selectedEntity.id, index);
+  };
+
+  const handleRemoveAction = (index: number) => {
+    if (!selectedEntity) return;
+    removeAction(selectedEntity.id, index);
+  };
+
+  const handleUpdateAttribute = (index: number, field: keyof import('./types').Attribute, value: string) => {
+    if (!selectedEntity) return;
+    updateAttribute(selectedEntity.id, index, field, value);
+  };
+
+  const handleUpdateState = (index: number, value: string) => {
+    if (!selectedEntity) return;
+    updateState(selectedEntity.id, index, value);
+  };
+
+  const handleUpdateAction = (index: number, value: string) => {
+    if (!selectedEntity) return;
+    updateAction(selectedEntity.id, index, value);
+  };
+
+  const handleEntityCardClick = (e: React.MouseEvent, entity: Entity) => {
+    e.stopPropagation();
+    handleEntityClick(entity);
   };
 
 
@@ -494,7 +342,7 @@ const BusinessDomainModeler = () => {
                         isCreatingRelationship={isCreatingRelationship}
                         entities={model.entities}
                         relationships={model.relationships}
-                        onEntityClick={handleEntityClick}
+                        onEntityClick={handleEntityCardClick}
                       />
                     ))}
 
@@ -537,15 +385,15 @@ const BusinessDomainModeler = () => {
           onUpdateEntity={updateEntity}
           onDeleteEntity={deleteEntity}
           onUpdateRelationshipLabel={updateRelationshipLabel}
-          onAddAttribute={addAttribute}
-          onAddState={addState}
-          onAddAction={addAction}
-          onRemoveAttribute={removeAttribute}
-          onRemoveState={removeState}
-          onRemoveAction={removeAction}
-          onUpdateAttribute={updateAttribute}
-          onUpdateState={updateState}
-          onUpdateAction={updateAction}
+          onAddAttribute={handleAddAttribute}
+          onAddState={handleAddState}
+          onAddAction={handleAddAction}
+          onRemoveAttribute={handleRemoveAttribute}
+          onRemoveState={handleRemoveState}
+          onRemoveAction={handleRemoveAction}
+          onUpdateAttribute={handleUpdateAttribute}
+          onUpdateState={handleUpdateState}
+          onUpdateAction={handleUpdateAction}
           onStartRelationshipFromEntity={startRelationshipFromEntity}
           onCancelRelationship={cancelRelationship}
         />
